@@ -18,7 +18,7 @@ This guide is mainly geared towards people with experience in Vulkan, or any of 
 
 ConfettiFX provides IDE project files for the supported platforms, and since I use Windows, that will be Visual Studio.
 
-The Forge is only tested on Visual Studio 2019 with Windows SDK 10.0.17763.0, so that's what we're going to use. If we take a look at `Application/Config.h`, it specifically wants `_MSC_VER == 1929`, which is Visual Studio 2019 version 16.10.
+The Forge is only tested on Visual Studio 2019 with Windows SDK 10.0.17763.0, so that's what we're going to use. If we take a look at `Application/Config.h`{: .filepath}, it specifically wants `_MSC_VER == 1929`, which is Visual Studio 2019 version 16.10.
 ```c
 // Whitelist of compiler versions
 #if (_MSC_VER == 1929) // VS 2019 all VC++ compilers
@@ -27,6 +27,7 @@ The Forge is only tested on Visual Studio 2019 with Windows SDK 10.0.17763.0, so
 #error "Bad Visual Studio version"
 #endif
 ```
+{:file='Application/Config.h'}
 
 I used Wayback Machine to access the [Visual Studio download page from June 1st, 2021](https://web.archive.org/web/20210601035621/https://visualstudio.microsoft.com/downloads/), downloaded and installed it with the required Windows SDK version.
 
@@ -40,7 +41,7 @@ Before we try to do anything with the framework, let's make sure we can actually
 git clone https://github.com/ConfettiFX/The-Forge.git
 ```
 
-To run the examples, you have to download the assets used by them by running the `PRE_BUILD.bat` file. Then open `The-Forge\Examples_3\Unit_Tests\PC Visual Studio 2019\Unit_Tests.sln`. Set `01_Transformations` as the Startup Project in the Solution Explorer.
+To run the examples, you have to download the assets used by them by running the `PRE_BUILD.bat`{: .filepath} file. Then open `The-Forge\Examples_3\Unit_Tests\PC Visual Studio 2019\Unit_Tests.sln`{: .filepath}. Set `01_Transformations` as the Startup Project in the Solution Explorer.
 
 ![Select startup project](02_select_example.png)
 
@@ -64,11 +65,11 @@ Now let's add a source file. Right click on `Source Files` and select `Add/New I
 
 ![New source file](06_add_source.png)
 
-Create a new directory `triangle` under `Unit_Tests\src` and put your source file there. I named mine `triangle.cpp`.
+Create a new directory `triangle`{: .filepath} under `Unit_Tests\src`{: .filepath} and put your source file there. I named mine `triangle.cpp`{: .filepath}.
 
 ![Source file location](07_source_file.png)
 
-Put the following code in `triangle.cpp`. Adjust the include path if you need to.
+Put the following code in `triangle.cpp`{: .filepath}. Adjust the include path if you need to.
 
 ```cpp
 #include "../../../../Common_3/Application/Interfaces/IApp.h"
@@ -115,18 +116,19 @@ class Triangle : public IApp
 
 DEFINE_APPLICATION_MAIN(Triangle)
 ```
+{: file='src/triangle/triangle.cpp'}
 
 We'll need to configure our new project. Right click on the project and select `Properties`.
 
 In `Configuration Properties/General`, set `Output Directory` to:
 
-```
+```text
 $(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName)\
 ```
 
 And set  `Intermediate Directory` to:
 
-```
+```text
 $(SolutionDir)\$(Platform)\$(Configuration)\Intermediate\$(ProjectName)\
 ```
 
@@ -140,13 +142,13 @@ In `Configuration Properties/Debugging`, set `Working Directory` to `$(OutDir)`
 
 In `Configuration Properties/VC++ Directories`, set `Library Directories` to:
 
-```
+```text
 $(SolutionDir)\$(Platform)\$(Configuration);$(LibraryPath)
 ```
 
 In `Configuration Properties/Linker/Input`, set `Additional Dependencies` to:
 
-```
+```text
 Xinput9_1_0.lib;ws2_32.lib;Renderer.lib;OS.lib;%(AdditionalDependencies)
 ```
 
@@ -164,7 +166,7 @@ Now, this error will appear if we try to build:
 
 ![Agility SDK](13_agility.png)
 
-The examples define this in `Examples_3\Build_Props\VS\TF_Shared.props`.
+The examples define `D3D12_AGILITY_SDK_VERSION` in `Examples_3\Build_Props\VS\TF_Shared.props`{: .filepath}.
 
 ```xml
 <PreprocessorDefinitions>
@@ -173,14 +175,16 @@ The examples define this in `Examples_3\Build_Props\VS\TF_Shared.props`.
   %(PreprocessorDefinitions)
 </PreprocessorDefinitions>
 ```
+{: file='Build_Props/VS/TF_Shared.props'}
 
-We're going to do the same. Edit `triangle.vcxproj` and add these lines just before the last `</Project>` line. Adjust the path to `TF_Shared.props` if you need to.
+We're going to do the same. Edit `triangle.vcxproj`{: .filepath} and add these lines just before the last `</Project>` line. Adjust the path to `TF_Shared.props`{: .filepath} if you need to.
 
 ```xml
   <ImportGroup Label="PropertySheets">
     <Import Project="..\..\..\..\Examples_3\Build_Props\VS\TF_Shared.props" />
   </ImportGroup>
 ```
+{: file='triangle.vcxproj'}
 
 Reload the project and launch. If everything went well a window should pop up.
 
@@ -190,7 +194,7 @@ Now we can start writing the code for our triangle.
 
 ## Rendering a triangle
 
-The Forge uses FSL (Forge Shading Language). We first need to integrate FSL by right clicking the project, select `Build Dependencies/Build Customizations` and choose the `fsl.target` file.
+The Forge uses FSL (Forge Shading Language). We first need to integrate FSL by right clicking the project, select `Build Dependencies/Build Customizations` and choose the `fsl.target`{: .filepath} file.
 
 Now we can start writing the shaders for our triangle. First create a new filter for our shaders and name it `FSLShaders`
 
@@ -200,11 +204,11 @@ Then right click on `FSLShaders` and select `Add/New Item`.
 
 ![Filter item](16_filter_item.png)
 
-Create a new directory `Shaders` under `Unit_Tests\src\triangle` and place your shaders there, making sure it ends with `.fsl`. I named mine `triangle.vert.fsl` and `triangle.frag.fsl`. Also add a new file `shaders.list` in the same directory.
+Create a new directory `Shaders`{: .filepath} under `Unit_Tests\src\triangle`{: .filepath} and place your shaders there, making sure it ends with `.fsl`{: .filepath}. I named mine `triangle.vert.fsl`{: .filepath} and `triangle.frag.fsl`{: .filepath}. Also add a new file `shaders.list`{: .filepath} in the same directory.
 
 ![Shader dir](17_shader_dir.png)
 
-Put the following code in `triangle.vert.fsl`. Refer to the [FSL Programming Guide](https://github.com/ConfettiFX/The-Forge/wiki/FSL-Programming-Guide) for more details.
+Put the following code in `triangle.vert.fsl`{: .filepath}. Refer to the [FSL Programming Guide](https://github.com/ConfettiFX/The-Forge/wiki/FSL-Programming-Guide) for more details.
 
 ```
 STRUCT(VSInput)
@@ -227,8 +231,10 @@ VSOutput VS_MAIN(VSInput In)
     RETURN(Out);
 }
 ```
+{: file='src/triangle/Shaders/triangle.vert.fsl'}
 
-Put this in `triangle.frag.fsl`
+
+Put this in `triangle.frag.fsl`{: .filepath}
 
 ```
 STRUCT(VSOutput)
@@ -246,8 +252,9 @@ float4 PS_MAIN(VSOutput In)
     RETURN(Out);
 }
 ```
+{: file='src/triangle/Shaders/triangle.frag.fsl'}
 
-And put this in `shaders.list`. Adjust the include path if needed.
+And put this in `shaders.list`{: .filepath}. Adjust the include path if needed.
 
 ```
 #include "../../../../../Common_3/Graphics/FSL/defaults.h"
@@ -266,6 +273,7 @@ And put this in `shaders.list`. Adjust the include path if needed.
 #include "triangle.frag.fsl"
 #end
 ```
+{: file='src/triangle/Shaders/shaders.list'}
 
 Right click on the project and select `Properties`. In `Configuration Properties/FSLShader`:
 - set `Language` to `DIRECT3D12`
@@ -275,7 +283,7 @@ Right click on the project and select `Properties`. In `Configuration Properties
 
 ![Shader properties](18_shader_props.png)
 
-Now put this in `triangle.cpp`. If you've used Vulkan then this should look pretty familiar.
+Now put this in `triangle.cpp`{: .filepath}. If you've used Vulkan then this should look pretty familiar.
 
 ```cpp
 // Interfaces
@@ -568,6 +576,7 @@ class Triangle : public IApp
 
 DEFINE_APPLICATION_MAIN(Triangle)
 ```
+{: file='src/triangle/triangle.cpp'}
 
 Then launch. If everything went well a red triangle should appear.
 
