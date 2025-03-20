@@ -13,6 +13,8 @@ There is a [guide on building The Forge by LCG](https://rendering-techniques.lea
 
 This guide is mainly geared towards people with experience in Vulkan, or any of the modern graphics APIs.
 
+![Triangle](19_triangle.png)
+
 ## Prerequisites (Windows)
 **TL;DR**: Download Visual Studio 2019 version 16.10 [here](https://download.visualstudio.microsoft.com/download/pr/1192d0de-5c6d-4274-b64d-c387185e4f45/b6bf2954c37e1caf796ee06436a02c79f7b13ae99c89b8a3b3b023d64a5935e4/vs_Community.exe), select and install "Desktop development with C++" package and Windows 10 SDK (10.0.17763.0).
 
@@ -177,12 +179,62 @@ The examples define `D3D12_AGILITY_SDK_VERSION` in `Examples_3\Build_Props\VS\TF
 ```
 {: file='Build_Props/VS/TF_Shared.props'}
 
-We're going to do the same. Edit `triangle.vcxproj`{: .filepath} and add these lines just before the last `</Project>` line. Adjust the path to `TF_Shared.props`{: .filepath} if you need to.
+`TF_Shared.props`{: .filepath} also imports a platform-specific `.props`{: .filepath} that contains the commands to copy the required resources to the build directory.
 
 ```xml
-  <ImportGroup Label="PropertySheets">
-    <Import Project="..\..\..\..\Examples_3\Build_Props\VS\TF_Shared.props" />
-  </ImportGroup>
+<ImportGroup Label="PropertySheets">
+  <Import Condition="$(ProjectDir.Contains('Quest_VisualStudio2019'))" Project="$(TheForgeRoot)Examples_3\Build_Props\VS\Quest.arm64.v8a.props" />
+  <Import Condition="$(ProjectDir.Contains('Android_VisualStudio2019'))" Project="$(TheForgeRoot)Examples_3\Build_Props\VS\Android.arm64.v8a.props" />
+  <Import Condition="$(ProjectDir.Contains('PC Visual Studio 2019'))" Project="$(TheForgeRoot)Examples_3\Build_Props\VS\Examples.x64.props" />
+  <Import Condition="$(ProjectDir.Contains('PS4 Visual Studio 2019'))" Project="$(TheForgeRoot)PS4\VSProps\PS4.props" />
+  <Import Condition="$(ProjectDir.Contains('Prospero Visual Studio 2019'))" Project="$(TheForgeRoot)Prospero\VSProps\Prospero.props" />
+  <Import Condition="$(ProjectDir.Contains('NX'))" Project="$(TheForgeRoot)Switch\Examples_3\Unit_Tests\NX Visual Studio 2019\ImportNintendoSdk.props" />
+</ImportGroup>
+```
+{: file='Build_Props/VS/TF_Shared.props'}
+
+```xml
+<ItemDefinitionGroup Condition="'$(ConfigurationType)' == 'Application'">
+  <PostBuildEvent>
+    <Command>
+      xcopy "$(TheForgeRoot)Common_3\Graphics\ThirdParty\OpenSource\VulkanSDK\bin\Win32\*.dll" "$(OutDir)" /S /Y /D
+      xcopy "$(TheForgeRoot)Common_3\Graphics\ThirdParty\OpenSource\VulkanSDK\bin\Win32\*.json" "$(OutDir)" /S /Y /D
+      xcopy "$(TheForgeRoot)Common_3\Graphics\ThirdParty\OpenSource\ags\ags_lib\lib\amd_ags_x64.dll" "$(OutDir)amd_ags_x64.dll"* /S /Y /D
+      xcopy "$(TheForgeRoot)Common_3\Graphics\ThirdParty\OpenSource\DirectXShaderCompiler\bin\x64\dxcompiler.dll" "$(OutDir)dxcompiler.dll"* /S /Y /D
+      xcopy "$(TheForgeRoot)Common_3\Graphics\ThirdParty\OpenSource\Direct3d12Agility\bin\x64\*.dll" "$(OutDir)"* /S /Y /D
+      xcopy "$(TheForgeRoot)Common_3\Graphics\ThirdParty\OpenSource\winpixeventruntime\bin\WinPixEventRuntime.dll" "$(OutDir)WinPixEventRunTime.dll"* /S /Y /D
+      xcopy /Y /D "$(TheForgeArtDir)PathStatement.Windows.txt" "$(OutDir)PathStatement.txt*"
+      xcopy /Y /D "..\src\$(ProjectName)\GPUCfg\gpu.cfg" "$(OutDir)"
+
+      mkdir "$(OutDir)PipelineCaches\"
+      mkdir "$(OutDir)Screenshots\"
+      mkdir "$(OutDir)Debug\"
+      mkdir "$(OutDir)Scripts\"
+      xcopy /Y /D "..\src\$(ProjectName)\Scripts\*" "$(OutDir)\Scripts\"
+      xcopy "$(TheForgeRoot)Common_3\Scripts\*" "$(OutDir)\Scripts\" /Y /D
+
+      xcopy "$(TheForgeRoot)Common_3\OS\Windows\pc_gpu.data" "$(OutDir)gpu.data*" /Y /D
+
+      cd "$(TheForgeRoot)"
+      powershell start-process ".\Common_3\Tools\ReloadServer\ReloadServer.bat" -WindowStyle Hidden
+    </Command>
+  </PostBuildEvent>
+  <PreLinkEvent>
+    <Command>
+      if exist "$(OutDir)..\OS\Shaders\" xcopy /Y /S /D "$(OutDir)..\OS\Shaders\*" "$(OutDir)Shaders\"
+      if exist "$(OutDir)..\OS\CompiledShaders\" xcopy /Y /S /D "$(OutDir)..\OS\CompiledShaders\*" "$(OutDir)CompiledShaders\"
+    </Command>
+  </PreLinkEvent>
+</ItemDefinitionGroup>
+  ```
+{: file='Build_Props/VS/Examples.x64.props'}
+
+We can define these ourself, but for this project we're just going to use the provided `TF_Shared.props`{: .filepath} file. Edit `triangle.vcxproj`{: .filepath} and add these lines just before the last `</Project>` line. Adjust the path to `TF_Shared.props`{: .filepath} if you need to.
+
+```xml
+<ImportGroup Label="PropertySheets">
+  <Import Project="..\..\..\..\Examples_3\Build_Props\VS\TF_Shared.props" />
+</ImportGroup>
 ```
 {: file='triangle.vcxproj'}
 
