@@ -63,6 +63,18 @@ Select the `Empty Project` template, name the project `triangle` and put it in t
 
 ![New project](05_new_project_2.png)
 
+Visual Studio will create a new directory for our project, but we want our project files to be in the same directory as the other examples (otherwise we'll have to adjust some paths). First remove the project in Visual Studio:
+
+![Remove project](20_remove_proj.png)
+
+Then copy the project files to the same directory as the other examples and delete the original `triangle`{: .filepath} directory
+
+![Copy project](21_copy_files.png)
+
+Then add as an existing project
+
+![Add existing](22_add_existing.png)
+
 Now let's add a source file. Right click on `Source Files` and select `Add/New Item`.
 
 ![New source file](06_add_source.png)
@@ -148,6 +160,8 @@ In `Configuration Properties/VC++ Directories`, set `Library Directories` to:
 $(SolutionDir)\$(Platform)\$(Configuration);$(LibraryPath)
 ```
 
+![VCC directories](23_vcc_lib.png)
+
 In `Configuration Properties/Linker/Input`, set `Additional Dependencies` to:
 
 ```text
@@ -179,7 +193,7 @@ The examples define `D3D12_AGILITY_SDK_VERSION` in `Examples_3\Build_Props\VS\TF
 ```
 {: file='Build_Props/VS/TF_Shared.props'}
 
-`TF_Shared.props`{: .filepath} also imports a platform-specific `.props`{: .filepath} that contains the commands to copy the required resources to the build directory.
+`TF_Shared.props`{: .filepath} also imports a platform-specific `.props`{: .filepath} that contains the commands to copy the required resources to the build directory, and a command that launches the shader reload server.
 
 ```xml
 <ImportGroup Label="PropertySheets">
@@ -192,6 +206,8 @@ The examples define `D3D12_AGILITY_SDK_VERSION` in `Examples_3\Build_Props\VS\TF
 </ImportGroup>
 ```
 {: file='Build_Props/VS/TF_Shared.props'}
+
+On Windows, the imported `.props`{: .filepath} is `Examples.x64.props`{: .filepath}
 
 ```xml
 <ItemDefinitionGroup Condition="'$(ConfigurationType)' == 'Application'">
@@ -233,12 +249,15 @@ We can define these ourself, but for this project we're just going to use the pr
 
 ```xml
 <ImportGroup Label="PropertySheets">
-  <Import Project="..\..\..\..\Examples_3\Build_Props\VS\TF_Shared.props" />
+  <Import Project="..\..\..\Examples_3\Build_Props\VS\TF_Shared.props" />
 </ImportGroup>
 ```
 {: file='triangle.vcxproj'}
 
-Reload the project and launch. If everything went well a window should pop up.
+> If you pay close attention, you'll notice that we're missing the `gpu.cfg`{: .filepath} file. It's not strictly necessary, so it's not going to be a problem for us.
+{: .prompt-info}
+
+Reload the project, set it as the startup project and launch. If everything went well a window should pop up.
 
 ![Window](14_window.png)
 
