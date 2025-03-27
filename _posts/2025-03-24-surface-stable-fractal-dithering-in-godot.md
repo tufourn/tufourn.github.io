@@ -1,6 +1,6 @@
 ---
 title: Surface-Stable Fractal Dithering in Godot
-description: Godot implementation of runevision's Surface-Stable Fractal Dithering
+description: Implementation of runevision's Surface-Stable Fractal Dithering in Godot
 date: 2025-03-24 18:03 -0400
 categories: [programming, graphics programming]
 tags: [graphics programming, godot]
@@ -36,21 +36,51 @@ The geometry texture coordinates is just the `UV` value passed from the vertex s
 
 ![UV](02_uv.png)
 
-But mapping the dither pattern to the geometry using UV mapping directly results in the pattern sometimes being scaled too small or too large. To scale the dither pattern so it's roughly constant in size on the screen, the derivatives of the UV in screen space are also needed. Here they are, visualized as `abs(dFdx(UV)) * 100` and `abs(dFdy(UV) * 100)`, respectively. Whenever the pattern becomes two times too large, we halve the scale and vice versa.
+But UV mapping the dither pattern to the geometry results in uneven scaling. This technique compensates for it by scaling down the pattern when it becomes too large and scaling up the pattern when it becomes too small. This is done by using the derivatives of the UV, or "how fast" the UV is changing, in screen space. Here they are, visualized as `abs(dFdx(UV)) * 100` and `abs(dFdy(UV) * 100)`, respectively.
 
 | ![dFdx](03_dfdx.png) | ![dFdy](04_dfdy.png) |
 
-Given these derivative values, the technique uses singular value decomposition to find the maximum and minimum frequencies. Here they are, scaled up by 10x. The minimum frequency, combined with the material properties, are used to calculate the base dither dot spacing value.
+Given these derivative values, the technique uses singular value decomposition to find the maximum and minimum frequencies. Here they are, scaled up by 10x.
 
 | ![Max freq](05_freqmax.png) | ![Min freq](06_freqmin.png) |
 
-We also need to prepare the 3D texture for our radial gradient dither pattern. The 4x4 dither pattern with the layers placed side-by-side looks like this:
+The minimum frequency, combined with the material properties, are used to calculate the base dither dot spacing value.
+
+```glsl
+// freq is vec2(max_freq, min_freq)
+// spacing variable which correlates with average distance between dots
+float spacing = freq.y;
+
+// scale by specified input scale
+float scale_exp = exp2(scale);
+spacing *= scale_exp;
+```
+
+By scaling down by half when the pattern becomes twice as large and vice versa, we can adjust the scaling so that patterns are scaled roughly the same size on the screen, varying only up to a factor of two. I'm using a simple dot as the texture here to visualize the effect.
+
+![Derivative UV](11_derivative_uv.png)
+
+We can see that a dot kind of splits into 4 smaller dots when it crosses the threshold to the lower fractal level. By shifting the dot center to the corner of the texture, we can make it so that it appears like the big dot becomes smaller and is joined by 3 more dots surrounding it when the scaling changes.
+
+| ![Dot](13_dot_tex.png) | ![Dot cornered](14_dot_corner_tex.png) |
+
+![Corner dot](12_corner_dot.png)
+
+To reduce the abruptness when the scaling changes, we can make the new dots appear one by one instead of all at once. This is achieved with a 3D texture, where each layer contains one additional dot compared to the previous layer.
+
+The 4x4 radial gradient dither pattern (64x64x8) with the layers placed side-by-side looks like this, with the leftmost layer containing 1 dot and the rightmost layer containing 16 dots.
 
 ![3D texture](08_3dtex.png)
 
-The mesh UV is divided by the nearest lower power of two of the spacing to get the adjusted UV to sample the 3D texture.
+The mesh UV is divided by the nearest lower power of two of the spacing to get the adjusted UV to sample the 3D texture. By scaling UV by brightness, we are controlling brightness by changing both dot spacing and dot sizes.
 
 ```glsl
+// keep the spacing the same regardless of pattern
+spacing *= dots_per_side * 0.125;
+
+float brightness_spacing_multiplier = pow(brightness_curve * 2.0 + 0.001, -1.0);
+spacing *= brightness_spacing_multiplier;
+
 float spacing_log = log2(spacing);
 float pattern_scale_level = floor(spacing_log);
 vec2 uv_dither = uv / exp2(pattern_scale_level);
@@ -81,10 +111,9 @@ float pattern = texture(dither_tex, vec3(uv_dither, sub_layer)).r;
 
 ![Sampled texture](07_sampled.png)
 
-Next, the contrast factor is calculated based on the spacing, ratio of the UV frequencies, and the material properties.
+Next, the contrast factor is calculated based on the spacing, ratio of the UV frequencies, and the material properties to get sharp dots from the radial gradient pattern.
 
 ```glsl
-// create sharp dots from radial gradient textures by increasing contrast
 float dot_contrast = contrast * scale_exp * brightness_spacing_multiplier * 0.1;
 
 // contrast is based on the highest frequency to avoid aliasing
@@ -104,8 +133,10 @@ The threshold value to compare with the radial gradient is calculated based on t
 
 ```glsl
 // the brighter we want the output, the lower the threshold we need to use
-float threshold = 1.0 - brightness_curve;
+float threshold = 1.0 - brightness;
 ```
+
+By setting the threshold to be `1.0 - brightness`, the brightness is controlled by varying dot sizes. This cancels out the effect from scaling the UV with brightness and we end up with brightness controlled only by modifying dot spacing.
 
 Then the final color is calculated and we get our result.
 
@@ -122,26 +153,3 @@ My implementation of the technique in Godot can be found on [GitHub](https://git
 
 The main logic is in `Shaders/Dither3D.gdshaderinc`{: .filepath} which is basically the original implementation ported to Godot's shading language. The 3D dither pattern texture files are available, but I've also included the `CreateDitherTextures.gd`{: .filepath} script which you can use to generate them yourself.
 
-Make sure that you set `render_mode ambient_light_disabled`, or you'll end up with something like this.
-
-![Ambient](09_ambient.png)
-
-Because Godot doesn't provide a way to apply shading after all the lights have been applied, I had to use this trick in the `light()` shader.
-
-```glsl
-void light() {
-    float NoL = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
-	
-    // using DIFFUSE_LIGHT as a spare variable to accumulate light
-    DIFFUSE_LIGHT += LIGHT_COLOR * ATTENUATION * NoL;
-
-    // calculate dither
-    vec2 dx = dFdx(UV);
-    vec2 dy = dFdy(UV);
-    SPECULAR_LIGHT = get_dither_3d_color(UV, dx, dy, vec4(ALBEDO * DIFFUSE_LIGHT, 1.0)).rgb;
-
-    // cancel contribution of DIFFUSE_LIGHT
-    SPECULAR_LIGHT -= DIFFUSE_LIGHT * ALBEDO;
-}
-```
-{: file='DitherOpaque.gdshader'}
