@@ -50,10 +50,6 @@ The minimum frequency, combined with the material properties, are used to calcul
 // freq is vec2(max_freq, min_freq)
 // spacing variable which correlates with average distance between dots
 float spacing = freq.y;
-
-// scale by specified input scale
-float scale_exp = exp2(scale);
-spacing *= scale_exp;
 ```
 
 By scaling down by half when the pattern becomes twice as large and vice versa, we can adjust the scaling so that patterns are scaled roughly the same size on the screen, varying only up to a factor of two. I'm using a simple dot as the texture here to visualize the effect.
@@ -68,13 +64,17 @@ We can see that a dot kind of splits into 4 smaller dots when it crosses the thr
 
 To reduce the abruptness when the scaling changes, we can make the new dots appear one by one instead of all at once. This is achieved with a 3D texture, where each layer contains one additional dot compared to the previous layer.
 
-The 4x4 radial gradient dither pattern (64x64x8) with the layers placed side-by-side looks like this, with the leftmost layer containing 1 dot and the rightmost layer containing 16 dots.
+The 4x4 radial gradient dither pattern (64x64x16) with the layers placed side-by-side looks like this, with the leftmost layer containing 1 dot and the rightmost layer containing 16 dots.
 
 ![3D texture](08_3dtex.png)
 
 The mesh UV is divided by the nearest lower power of two of the spacing to get the adjusted UV to sample the 3D texture. By scaling UV by brightness, we are controlling brightness by changing both dot spacing and dot sizes.
 
 ```glsl
+// scale by specified input scale
+float scale_exp = exp2(scale);
+spacing *= scale_exp;
+
 // keep the spacing the same regardless of pattern
 spacing *= dots_per_side * 0.125;
 
@@ -136,7 +136,7 @@ The threshold value to compare with the radial gradient is calculated based on t
 float threshold = 1.0 - brightness;
 ```
 
-By setting the threshold to be `1.0 - brightness`, the brightness is controlled by varying dot sizes. This cancels out the effect from scaling the UV with brightness and we end up with brightness controlled only by modifying dot spacing.
+By setting the threshold to be `1.0 - brightness`, the brightness is controlled by varying dot sizes (e.g. brighter spots results in lower thresholds which means larger dots). This cancels out the effect from scaling the UV with brightness and we end up with brightness controlled only by modifying dot spacing.
 
 Then the final color is calculated and we get our result.
 
