@@ -14,13 +14,96 @@ The code for this project can be found on [GitHub](https://github.com/tufourn/Di
 
 ![Final cubemap](10_cubemap_alt.gif)
 
-The first thing I did was a simple screen space to make sure I got the Compositor set up correctly. As expected, the dithering effect works well enough for static images, but when you move around, the pixels kinda swim around which is a major problem. Effect scaled up for clarity.
+The first thing I did was a simple screen space dithering to make sure I got the Compositor set up correctly. As expected, the dithering effect works well enough for static images, but when you move around, the pixels kinda swim around which is a major problem. Effect scaled up for clarity.
 
 ![Screen space](00_screenspace.gif)
 
 Lucas Pope tried several methods, but the one that worked best was to [map the dithering pattern to a sphere around the camera](https://forums.tigsource.com/index.php?topic=40832.msg1363742#msg1363742). He mentioned hand tweaking the mapping until it looks good, but did not specify how. Instead of doing that, I wanted to try something more simple. My strategy is to project a sphere onto a cubemap and sampling that.
 
-The first thing to do was to create a cubemap and make sure that it works. Here I am using a tiled 8x8 Bayer matrix. Again, the effect is scaled up for clarity.
+First we create the cubemap texture.
+
+```gdscript
+var bayer : CompressedTexture2D = load("res://Dither/cubemap_face.png")
+var bayer_img : Image = bayer.get_image()
+bayer_img.convert(Image.FORMAT_R8)
+
+var bayer_img_data : PackedByteArray = bayer_img.get_data()
+var cubemap_data : Array[PackedByteArray] = []
+for i in range(6):
+  cubemap_data.push_back(bayer_img_data)
+
+var cubemap_format : RDTextureFormat = RDTextureFormat.new()
+cubemap_format.format = RenderingDevice.DATA_FORMAT_R8_UNORM
+cubemap_format.texture_type = RenderingDevice.TEXTURE_TYPE_CUBE
+cubemap_format.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT
+cubemap_format.array_layers = 6
+cubemap_format.width = bayer.get_width()
+cubemap_format.height = bayer.get_height()
+
+var cubemap_view : RDTextureView = RDTextureView.new()
+
+cubemap_texture = rd.texture_create(cubemap_format, cubemap_view, cubemap_data)
+```
+{:file="post_process.gd"}
+
+Then we need to calculate the direction from the eye to each pixel. This is done by transforming the frustum corners from NDC (normalized device coordinates) back to world space, and subtracting the position of the eye.
+
+```gdscript
+var projection : Projection = render_scene_data.get_view_projection(view)
+var view_inverse : Transform3D = render_scene_data.get_cam_transform()
+var eye_offset : Vector3 = render_scene_data.get_view_eye_offset(view)
+var eye_position : Vector3 = view_inverse * Vector3(0.0, 0.0, 0.0) + eye_offset
+
+var frustum_corners_ndc : Array[Vector4] = [
+  Vector4(-1, -1, 1, 1), Vector4(1, -1, 1, 1), # TL, TR
+  Vector4(-1, 1, 1, 1), Vector4(1, 1, 1, 1) # BL, BR
+]
+
+var frustum_corners : PackedVector4Array
+for ndc in frustum_corners_ndc:
+  var view_space = projection.inverse() * ndc
+  var corner = view_inverse * Vector3(view_space.x, view_space.y, view_space.z) - eye_position
+  frustum_corners.append(Vector4(corner.x, corner.y, corner.z, 1.0))
+```
+{:file="post_process.gd"}
+
+And lerp (linear interpolation) in the compute shader based on the position of each pixel on the image.
+
+```glsl
+layout(push_constant, std430) uniform PushConstants {
+  vec4 frustum_top_left;
+  vec4 frustum_top_right;
+  vec4 frustum_bottom_left;
+  vec4 frustum_bottom_right;
+  vec2 raster_size;
+  vec2 reserved;
+} pc;
+
+vec3 get_direction_to_pixel(vec2 uv) {
+  float u = float(uv.x) / (pc.raster_size.x - 1);
+  float v = float(uv.y) / (pc.raster_size.y - 1);
+
+  vec3 top = mix(pc.frustum_top_left.xyz, pc.frustum_top_right.xyz, u);
+  vec3 bot = mix(pc.frustum_bottom_left.xyz, pc.frustum_bottom_right.xyz, u);
+  vec3 direction = mix(top, bot, v);
+
+  return normalize(direction);
+}
+```
+{:file="dither.glsl"}
+
+Then we can sample the cubemap and apply the threshold. Here I am using a tiled 8x8 Bayer matrix as the dither texture. Again, the effect is scaled up for clarity.
+
+```glsl
+vec4 color = imageLoad(color_image, uv);
+
+float lum = color.r * 0.2125 + color.g * 0.7154 + color.b * 0.0721;
+float bayer_threshold = texture(cubemap_image, get_direction_to_pixel(uv)).r;
+color.rgb = vec3(step(bayer_threshold, lum));
+
+imageStore(color_image, uv, color);
+```
+{:file="dither.glsl"}
 
 ![Cubemap](01_cubemap.gif)
 
@@ -64,14 +147,15 @@ for x in range(resolution):
     var bayer_val = bayer[bayer_x][bayer_y]
     image_sphere.set_pixel(resolution - 1 - x, resolution - 1 - y, Color(bayer_val, bayer_val, bayer_val, 1.0))
 ```
+{:file="create_cubemap_image.gd"}
 
 ![Stretch](05_stretch_warp.png)
 
-It looks a bit better now, the dither pattern at the corners now looks more uniform than before. But then I ran into another problem: The Bayer dither pattern doesn't really tile well in a cubemap. It's more apparent when you apply the effect. Because the dither pattern at the corners are larger now, the seams look even more noticeable.
+It looks better now, the dither pattern at the corners now looks more uniform than before. But then I ran into another problem: The Bayer dither pattern doesn't really tile well in a cubemap. It's more apparent when you apply the effect. Because the dither pattern at the corners are larger now, the seams look even more noticeable.
 
 ![Seam](06_seam.png)
 
-After messing around with the mapping a bit, I ended up with this:
+After a bit of messing around with the mapping, I ended up with this:
 
 ```gdscript
 var bayer_x : int = roundi(angle_x_normalized * bayer_size * tiling) % bayer_size
